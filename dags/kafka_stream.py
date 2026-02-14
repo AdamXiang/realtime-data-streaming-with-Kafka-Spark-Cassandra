@@ -29,7 +29,8 @@ def get_data():
 def format_data(response):
     data = {}
 
-    data['id'] = uuid.uuid4()
+    # if not cast into string, json cannot parse UUID object
+    data['id'] = str(uuid.uuid4())
     data['first_name'] = response['firstName']
     data['last_name'] = response['lastName']
     data['gender'] = response['gender']
@@ -44,30 +45,6 @@ def format_data(response):
     data['image'] = response['image']
 
     return data
-
-def stream_data(**kwargs):
-    import json
-    import time
-    import logging
-    from kafka import KafkaProducer
-
-    # if run on docker: should change to broker:29092, if not localhost:9092
-    producer = KafkaProducer(bootstrap_servers=['localhost:9092'], max_block_ms=5000)
-
-    current_time  = time.time()
-
-    while True:
-        if time.time() > current_time + 60:
-            break
-        try:
-            response = get_data()
-
-            data = format_data(response)
-
-            producer.send(topic='users_created', value=json.dumps(data).encode('utf-8'))
-        except Exception as e:
-            logging.error(f"An error occured: {e}")
-            continue
 
 @dag(
     dag_id='kafka_stream',
@@ -87,7 +64,7 @@ def kafka_stream_dag():
         from kafka import KafkaProducer
 
         # if run on docker: should change to broker:29092, if not localhost:9092
-        producer = KafkaProducer(bootstrap_servers=['localhost:9092'], max_block_ms=5000)
+        producer = KafkaProducer(bootstrap_servers=['broker:29092'], max_block_ms=5000)
 
         current_time  = time.time()
 
