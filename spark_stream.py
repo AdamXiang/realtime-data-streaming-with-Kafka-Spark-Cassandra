@@ -36,7 +36,7 @@ def create_table(session):
 
 
 def insert_data(session, **kwargs):
-    print("inserting data...")
+    print("Inserting data...")
 
     user_id = kwargs.get('id')
     first_name = kwargs.get('first_name')
@@ -59,7 +59,7 @@ def insert_data(session, **kwargs):
         logging.info(f"Data inserted for {first_name} {last_name}")
 
     except Exception as e:
-        logging.error(f'could not insert data due to {e}')
+        logging.error(f'Could not insert data due to {e}')
 
 
 def create_spark_connection():
@@ -76,6 +76,7 @@ def create_spark_connection():
 
         spark_conn.sparkContext.setLogLevel("ERROR")
         logging.info("Spark connection created successfully!")
+
     except Exception as e:
         logging.error(f"Couldn't create the spark session due to exception {e}")
 
@@ -83,6 +84,19 @@ def create_spark_connection():
 
 
 def connect_to_kafka(spark_conn):
+    """
+    Establishes a streaming connection to Kafka using the provided SparkSession.
+
+    This function connects to the local Kafka broker ('localhost:9092'), subscribes
+    to the 'users_created' topic, and starts reading the data stream from the
+    earliest available offset.
+
+    :param spark_conn: The active Spark session object used to read the stream.
+    :type spark_conn: pyspark.sql.SparkSession
+    :return: A Structured Streaming DataFrame containing raw Kafka data, or None if the connection fails.
+    :rtype: pyspark.sql.DataFrame or None
+    """
+
     spark_df = None
     try:
         spark_df = spark_conn.readStream \
@@ -92,6 +106,7 @@ def connect_to_kafka(spark_conn):
             .option('startingOffsets', 'earliest') \
             .load()
         logging.info("kafka dataframe created successfully")
+
     except Exception as e:
         logging.warning(f"kafka dataframe could not be created because: {e}")
 
@@ -99,6 +114,17 @@ def connect_to_kafka(spark_conn):
 
 
 def create_cassandra_connection():
+    """
+    Establishes a connection to the local Cassandra cluster.
+
+    This function attempts to connect to a Cassandra database hosted on
+    'localhost' and returns a session object for executing CQL queries.
+    If the connection fails, it logs an error and returns None.
+
+    Returns:
+        cassandra.cluster.Session or None: A connected Cassandra session
+            object if successful, otherwise None.
+    """
     try:
         # connecting to the cassandra cluster
         cluster = Cluster(['localhost'])
@@ -106,6 +132,7 @@ def create_cassandra_connection():
         cas_session = cluster.connect()
 
         return cas_session
+
     except Exception as e:
         logging.error(f"Could not create cassandra connection due to {e}")
         return None
@@ -148,8 +175,9 @@ if __name__ == "__main__":
 
             logging.info("Streaming is being started...")
 
+            # we want to do it with stream, not just batch insertion 
             streaming_query = (selection_df.writeStream.format("org.apache.spark.sql.cassandra")
-                               .option('checkpointLocation', '/tmp/checkpoint')
+                               .option('checkpointLocation', '/tmp/checkpoint') # in case there is any failure 
                                .option('keyspace', 'spark_streams')
                                .option('table', 'created_users')
                                .start())
