@@ -1,13 +1,10 @@
-from datetime import datetime, timedelta
-
-import airflow
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-
+from datetime import datetime
+import uuid
+from airflow.decorators import dag, task
 
 default_args = {
     'owner': 'airflow',
-    'start_date': datetime(2020, 1, 1),
+    'start_date': datetime(2026, 2, 1),
 }
 
 def get_data():
@@ -32,6 +29,7 @@ def get_data():
 def format_data(response):
     data = {}
 
+    data['id'] = uuid.uuid4()
     data['first_name'] = response['firstName']
     data['last_name'] = response['lastName']
     data['gender'] = response['gender']
@@ -71,13 +69,40 @@ def stream_data(**kwargs):
             logging.error(f"An error occured: {e}")
             continue
 
-with DAG(dag_id='kafka_stream',
-         default_args=default_args,
-         schedule='@daily',
-         max_active_runs=1,
-         catchup=False) as dag:
+@dag(
+    dag_id='kafka_stream',
+    default_args=default_args,
+    schedule='@daily',
+    max_active_runs=1,
+    catchup=False
+)
+def kafka_stream_dag():
 
-    streaming_task = PythonOperator(
-        task_id='streaming_task_from_api',
-        python_callable=stream_data,
-    )
+    # 定義 Task (使用 @task 裝飾器取代 PythonOperator)
+    @task(task_id='streaming_task_from_api')
+    def stream_data():
+        import json
+        import time
+        import logging
+        from kafka import KafkaProducer
+
+        # if run on docker: should change to broker:29092, if not localhost:9092
+        producer = KafkaProducer(bootstrap_servers=['localhost:9092'], max_block_ms=5000)
+
+        current_time  = time.time()
+
+        while True:
+            if time.time() > current_time + 60:
+                break
+            try:
+                response = get_data()
+                data = format_data(response)
+                producer.send(topic='users_created', value=json.dumps(data).encode('utf-8'))
+            except Exception as e:
+                logging.error(f"An error occured: {e}")
+                continue
+
+    stream_data()
+
+
+kafka_stream_dag()
