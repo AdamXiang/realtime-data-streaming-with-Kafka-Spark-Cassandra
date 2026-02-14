@@ -130,6 +130,7 @@ services:
       - ./dags:/opt/airflow/dags
       # before mounting, should check the .sh is executable or not
       - ./scripts/entrypoint.sh:/opt/airflow/scripts/entrypoint.sh
+      - ./logs:/opt/airflow/logs
     ports:
       - "8080:8080"
     healthcheck:
@@ -148,6 +149,7 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./requirements.txt:/opt/airflow/requirements.txt
+      - ./logs:/opt/airflow/logs
     environment:
       - LOAD_EX=n
       - EXECUTOR=Sequential
